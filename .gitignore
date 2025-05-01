@@ -18,4 +18,9 @@ build/
 .env
 *.log
 
+# Daten
+data/raw/
+data/processed/
+data/splits/
+
 
