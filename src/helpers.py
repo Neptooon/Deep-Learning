@@ -1,10 +1,17 @@
 import os
+from math import ceil
+
+import numpy as np
 import unicodedata
 import re
 import shutil
+
+from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import random
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
 
 
 def sanitize_filenames(base_path, delete_invalid=False):
@@ -79,3 +86,69 @@ class DataPrep:
             source = os.path.join(class_dir, image)
             destination = os.path.join(self.target_dir, split, class_name, image)
             shutil.copy(source, destination)
+
+
+def plot_training_history(history, model_name):
+    plt.figure(figsize=(12, 4))
+
+    # Accuracy
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Val Accuracy')
+    plt.title(f'{model_name} - Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.grid(True)
+
+    # Loss
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Val Loss')
+    plt.title(f'{model_name} - Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(f'../plots/{model_name}_training_plot.png')  # Abspeichern für Bericht
+    plt.show()
+
+def evaluate_model(model, test_generator, model_name):
+    Y_pred = model.predict(test_generator)
+    y_pred = np.argmax(Y_pred, axis=1)
+    y_true = test_generator.classes
+
+    print(f"\nClassification Report for {model_name}:\n")
+    print(classification_report(y_true, y_pred, target_names=list(test_generator.class_indices.keys())))
+
+    # Confusion Matrix
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=test_generator.class_indices.keys(),
+                yticklabels=test_generator.class_indices.keys())
+    plt.title(f'Confusion Matrix - {model_name}')
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    plt.savefig(f'../plots/{model_name}_confusion_matrix.png')
+    plt.show()
+
+def predict_and_plot(model, generator, class_names, num_images=15):
+    images, labels = next(generator)
+    predictions = model.predict(images)
+
+    loss, acc = model.evaluate(images[:15], labels[:15], verbose=0)
+    print(f"Subset Accuracy: {acc * 100:.2f}%, Loss: {loss:.4f}")
+
+    plt.figure(figsize=(15, 5))
+    for i in range(num_images):
+        ax = plt.subplot(ceil(num_images/5), 5, i + 1)
+        plt.imshow(images[i])
+        true_label = class_names[np.argmax(labels[i])]
+        predicted_label = class_names[np.argmax(predictions[i])]
+        plt.title(f"T: {true_label}\nP: {predicted_label}")
+        plt.axis("off")
+    plt.tight_layout()
+    plt.show()

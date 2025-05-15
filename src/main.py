@@ -1,63 +1,25 @@
 import os
+import pickle
+
 import numpy as np
 import keras
-from keras import layers, Sequential
-from keras.src.layers import Conv2D, BatchNormalization, MaxPooling2D, Flatten, Dense, Dropout
+from src import models
 from tensorflow import data as tf_data
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 import helpers
+from src.helpers import plot_training_history, evaluate_model, predict_and_plot
+from src.models import load_model_1, create_test_model, load_test_model
 
+class_names = ["Art Nouveau Modern", "Baroque", "Cubism", "Expressionism", "Impressionism", "Naive Art Primitivism", "Northern Renaissance", "Post Impressionism", "Realism", "Rococo", "Romanticism", "Symbolism"]
 
 '''helpers.sanitize_filenames("../data/processed", delete_invalid=False)'''
 
-'''# Datensatz generieren
-image_size = (180, 180)
-batch_size = 128
-
-train_ds, val_ds = keras.utils.image_dataset_from_directory(
-    "../data/processed",
-    validation_split=0.1,
-    subset="both",
-    seed=1337,
-    image_size=image_size,
-    batch_size=batch_size,
-)
-
-# Ersten 9 Bilder visualisieren
-plt.figure(figsize=(10, 10))
-for images, labels in train_ds.take(1):
-    for i in range(9):
-        ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(np.array(images[i]).astype("uint8"))
-        plt.title(int(labels[i]))
-        plt.axis("off")
-plt.figure()
-plt.show()'''
 
 #dataprep = helpers.DataPrep()
 #dataprep.prepare_data()
 
-'''data_augmentation_layers = [
-    layers.RandomFlip("horizontal"),
-    layers.RandomRotation(0.1),
-]
-
-
-def data_augmentation(images):
-    for layer in data_augmentation_layers:
-        images = layer(images)
-    return images
-
-plt.figure(figsize=(10, 10))
-for images, _ in train_ds.take(1):
-    for i in range(9):
-        augmented_images = data_augmentation(images)
-        ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(np.array(augmented_images[0]).astype("uint8"))
-        plt.axis("off")
-plt.show()'''
 
 train_gen = ImageDataGenerator(
         rescale=1./255.,
@@ -86,48 +48,11 @@ test_generator = test_gen.flow_from_directory(
         '../data/splits/test',
         target_size=(256, 256),
         batch_size=64,
-        shuffle= False,
+        shuffle= True,
         class_mode="categorical")
 
 
-model = Sequential([
-    # 1. Convolutional Layer
-    Conv2D(32, (3, 3), activation='relu', input_shape=(256, 256, 3)),
-    BatchNormalization(),
-    MaxPooling2D(pool_size=(2, 2)),
-
-    # 2. Convolutional Layer
-    Conv2D(64, (3, 3), activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D(pool_size=(2, 2)),
-
-    # 3. Convolutional Layer
-    Conv2D(128, (3, 3), activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D(pool_size=(2, 2)),
-
-    # 4. Convolutional Layer
-    Conv2D(256, (3, 3), activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D(pool_size=(2, 2)),
-
-    # 5. Convolutional Layer
-    Conv2D(256, (3, 3), activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D(pool_size=(2, 2)),
-
-    # Übergang zu Fully Connected Layers
-    Flatten(),
-
-    # 1. Fully Connected Layer
-    Dense(512, activation='relu'),
-
-    # 2. Fully Connected Layer
-    Dense(128, activation='relu'),
-
-    # Output Layer (12 Klassen)
-    Dense(12, activation='softmax')
-])
+model = load_model_1()
 
 # Kompilieren des Modells
 model.compile(
@@ -139,15 +64,20 @@ model.compile(
 # Modellübersicht
 model.summary()
 
-tensorboard = keras.callbacks.TensorBoard(log_dir="./logs")
+'''model.save("../models/test_model.keras")
+
+tensorboard = keras.callbacks.TensorBoard(log_dir="../logs")
 history = model.fit(
     train_generator,
-    epochs=25,
+    epochs=2,
     callbacks=[tensorboard],
     validation_data=validation_generator
 )
 
-model.save("../models/first_model.keras")
+with open("history.pkl", "wb") as f:
+    pickle.dump(history.history, f)
 
-loss, acc = model.evaluate(test_generator)
-print(f"Test Accuracy: {acc*100:.2f}%")
+plot_training_history(history, "Test_Modell")
+evaluate_model(model, test_generator, "Test_Modell")'''
+predict_and_plot(model, test_generator, class_names)
+
