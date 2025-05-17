@@ -1,41 +1,38 @@
-from keras import layers, Sequential
-from keras.src.layers import Conv2D, BatchNormalization, MaxPooling2D, Flatten, Dense, Dropout
-from keras.src.saving import load_model
-
+from keras import Sequential
+from keras.layers import *
+from keras.saving.save import load_model
 
 def create_model_1():
     model = Sequential([
         # 1. Convolutional Layer
-        Conv2D(32, (3, 3), activation='relu', input_shape=(256, 256, 3)),
+        Conv2D(32, (3, 3), activation='relu', input_shape=(224, 224, 3)),
         BatchNormalization(),
         MaxPooling2D(pool_size=(2, 2)),
 
         # 2. Convolutional Layer
-        Conv2D(64, (3, 3), activation='relu'),
+        Conv2D(64, (3, 3), activation='relu', padding='same'),
         BatchNormalization(),
         MaxPooling2D(pool_size=(2, 2)),
 
         # 3. Convolutional Layer
-        Conv2D(128, (3, 3), activation='relu'),
+        Conv2D(128, (3, 3), activation='relu', padding='same'),
         BatchNormalization(),
         MaxPooling2D(pool_size=(2, 2)),
 
         # 4. Convolutional Layer
-        Conv2D(256, (3, 3), activation='relu'),
+        Conv2D(256, (3, 3), activation='relu', padding='same'),
         BatchNormalization(),
-        MaxPooling2D(pool_size=(2, 2)),
 
         # 5. Convolutional Layer
-        Conv2D(256, (3, 3), activation='relu'),
+        Conv2D(512, (3, 3), activation='relu', padding='same'),
         BatchNormalization(),
-        MaxPooling2D(pool_size=(2, 2)),
 
         # Übergang zu Fully Connected Layers
         Flatten(),
 
         # 1. Fully Connected Layer
         Dense(512, activation='relu'),
-
+        Dropout(0.2),
         # 2. Fully Connected Layer
         Dense(128, activation='relu'),
 
@@ -45,7 +42,7 @@ def create_model_1():
     return model
 
 def load_model_1():
-    model = load_model("../models/first_model.keras")
+    model = load_model("../models/model_one.h5")
     return model
 
 def create_test_model():

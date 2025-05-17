@@ -5,7 +5,10 @@ import numpy as np
 import unicodedata
 import re
 import shutil
-
+import tensorflow as tf
+import time
+import csv
+from keras.callbacks import ModelCheckpoint
 from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
@@ -139,7 +142,7 @@ def predict_and_plot(model, generator, class_names, num_images=15):
     images, labels = next(generator)
     predictions = model.predict(images)
 
-    loss, acc = model.evaluate(images[:15], labels[:15], verbose=0)
+    loss, acc, categorical_accuracy, topKCategoricalAccuracy = model.evaluate(images[:15], labels[:15], verbose=0)
     print(f"Subset Accuracy: {acc * 100:.2f}%, Loss: {loss:.4f}")
 
     plt.figure(figsize=(15, 5))
@@ -152,3 +155,68 @@ def predict_and_plot(model, generator, class_names, num_images=15):
         plt.axis("off")
     plt.tight_layout()
     plt.show()
+
+
+
+
+
+checkpoint_callback = ModelCheckpoint(
+    filepath='../models/backup/backup_epoch_{epoch:02d}.h5',  # z. B. backup_epoch_05.h5
+    save_freq='epoch',
+    save_weights_only=False,  # True = nur Gewichte, False = komplettes Modell
+    verbose=1,
+    save_best_only=False,
+    monitor='val_loss'
+)
+
+# Custom Callback, der nur alle 5 Epochen speichert
+class SaveEveryNEpochs(tf.keras.callbacks.Callback):
+    def __init__(self, n, base_path):
+        super().__init__()
+        self.n = n
+        self.base_path = base_path
+
+    def on_epoch_end(self, epoch, logs=None):
+        if (epoch + 1) % self.n == 0:
+            path = self.base_path.format(epoch=epoch + 1)
+            self.model.save(path)
+            print(f"✅ Modell nach Epoche {epoch + 1} gespeichert: {path}")
+
+
+
+def cutout(image):
+    """Einfachere Cutout-Methode – zufällig schwarze Box einfügen"""
+    h, w, _ = image.shape
+    mask_height = tf.random.uniform([], 20, 60, dtype=tf.int32)
+    mask_width = tf.random.uniform([], 20, 60, dtype=tf.int32)
+
+    top = tf.random.uniform([], 0, h - mask_height, dtype=tf.int32)
+    left = tf.random.uniform([], 0, w - mask_width, dtype=tf.int32)
+
+    # Schwarze Maske erzeugen
+    cutout_area = tf.ones((mask_height, mask_width, 3), dtype=image.dtype) * 0.0
+    paddings = [[top, h - top - mask_height], [left, w - left - mask_width], [0, 0]]
+    mask = tf.pad(cutout_area, paddings, constant_values=1.0)
+
+    return image * mask
+
+
+
+
+class EpochTimer(tf.keras.callbacks.Callback):
+    def __init__(self, log_file='epoch_times.csv'):
+        super().__init__()
+        self.epoch_times = []
+        self.log_file = log_file
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.start_time = time.time()
+
+    def on_epoch_end(self, epoch, logs=None):
+        duration = time.time() - self.start_time
+        self.epoch_times.append(duration)
+        print(f"⏱️ Epoche {epoch + 1} dauerte {duration:.2f} Sekunden")
+
+        with open(self.log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch + 1, duration])
