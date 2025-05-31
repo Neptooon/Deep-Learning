@@ -17,6 +17,7 @@ from src.models import create_resnetlike_model, \
     custom_resnet_bottleneck, create_resnetlike_model_new, load_basic_deep_cnn, load_cnn_dropout_batch, \
     load_cnn_residual, load_cnn_with_stride, load_small_resnet, load_cnn_with_inception, load_resnet_style_wide_filters, \
     load_small_resnet_bottleneck, load_resnetlike_model_new
+from src.transfer import resnet50, unfreeze
 
 # Klassenbezeichnungen (alphabetisch)
 class_names = ["Art Nouveau Modern", "Baroque", "Cubism", "Expressionism", "Impressionism", "Naive Art Primitivism", "Northern Renaissance", "Post Impressionism", "Realism", "Rococo", "Romanticism", "Symbolism"]
@@ -37,7 +38,7 @@ train_gen = ImageDataGenerator(rescale=1./255.)
 train_generator = train_gen.flow_from_directory(
     '../data/augmented_fixed',
     target_size=(224, 224),
-    batch_size=32,
+    batch_size=64,
     shuffle=True,
     class_mode='categorical'
 )
@@ -63,8 +64,10 @@ test_generator = test_gen.flow_from_directory(
 )
 
 # Modell laden
-model = load_resnetlike_model_new()
-model_name = 'NEW_RESNET'
+model, basemodel = resnet50()
+model_name = 'Resnet50'
+
+
 
 # Optional: Lernratenplanung (aktuell deaktiviert)
 '''lr_s = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -73,9 +76,16 @@ model_name = 'NEW_RESNET'
     decay_rate=0.96,
 )'''
 
+"""lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=1e-3,
+    decay_steps=10000,
+    decay_rate=0.9,
+    staircase=True
+)"""
+
 # Kompilieren des Modells
 model.compile(
-    optimizer=keras.optimizers.Adam(learning_rate=3e-3), # 0,004, 0,003
+    optimizer=keras.optimizers.Adam(learning_rate=1e-3), # 0,004, 0,003
     loss='categorical_crossentropy',
     metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
 )
@@ -93,22 +103,38 @@ backup_callback = helpers.SaveEveryNEpochs(
 #early_stop = keras.callbacks.EarlyStopping(monitor='val_loss',patience=3, restore_best_weights=True)
 #lr_callback = keras.callbacks.LearningRateScheduler(lr_schedule)
 
-
+print(f"Anzahl gesamt Layer: {len(basemodel.layers)}")
 # Training des Modells
 history = model.fit(
     train_generator,
-    epochs=35,
-    initial_epoch=25,
-    callbacks = [tensorboard, backup_callback,timer],
+    epochs=5,
+    #callbacks = [tensorboard, backup_callback,timer],
     validation_data=validation_generator,
 )
+
+unfreeze(basemodel, num_layers=10)
+
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1e-5), # 0,00001
+    loss='categorical_crossentropy',
+    metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
+)
+
+history_finetune = model.fit(
+    train_generator,
+    epochs=15,
+    #callbacks = [tensorboard, backup_callback,timer],
+    validation_data=validation_generator,
+)
+
 
 # Finales Modell speichern
 model.save(f"../models/{model_name}.h5")
 
 # Trainingsverlauf als Pickle-Datei speichern
-with open(f"{model_name}_history.pkl", "wb") as f:
-    pickle.dump(history.history, f)
+'''with open(f"{model_name}_history.pkl", "wb") as f:
+    pickle.dump(history.history, f)'''
 
 # Verlauf laden
 '''with open(f"{model_name}_history.pkl", "rb") as f:
