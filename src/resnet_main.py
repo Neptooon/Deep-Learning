@@ -5,7 +5,8 @@ from keras.metrics import TopKCategoricalAccuracy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import helpers
-from transfer import resnet50
+from transfer import load_resnet50
+from transfer import resnet50, unfreeze
 
 # Klassenbezeichnungen (alphabetisch)
 class_names = ["Art Nouveau Modern", "Baroque", "Cubism", "Expressionism", "Impressionism", "Naive Art Primitivism", "Northern Renaissance", "Post Impressionism", "Realism", "Rococo", "Romanticism", "Symbolism"]
@@ -57,20 +58,11 @@ test_generator = test_gen.flow_from_directory(
     class_mode='categorical'
 )"""
 
-# Modell laden
-model, basemodel = resnet50()
+
+
+
 model_name = 'Transfer_ResNet50'
 
-
-
-# Kompilieren des Modells
-model.compile(
-    optimizer=keras.optimizers.Adam(learning_rate=1e-3), # 0,004, 0,003
-    loss='categorical_crossentropy',
-    metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
-)
-
-# Callbacks definieren
 tensorboard = keras.callbacks.TensorBoard(log_dir=f"{LOGS_DIR}/{model_name}")
 timer = helpers.EpochTimer(model_name=model_name)
 backup_callback = helpers.SaveEveryNEpochs(
@@ -81,6 +73,16 @@ backup_callback = helpers.SaveEveryNEpochs(
 #lr_callback = keras.callbacks.LearningRateScheduler(lr_schedule)
 
 
+# Init-Modell laden
+model = resnet50()
+base_model = model.get_layer("resnet50_base")
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1e-3), # 0,004, 0,003
+    loss='categorical_crossentropy',
+    metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
+)
+
 # Training des Modells
 history = model.fit(
     train_generator,
@@ -88,6 +90,24 @@ history = model.fit(
     callbacks = [tensorboard, backup_callback,timer],
     validation_data=validation_generator,
 )
+
+unfreeze(base_model)
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1e-5), # 0,00001
+    loss='categorical_crossentropy',
+    metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
+)
+
+
+history_finetune = model.fit(
+    train_generator,
+    epochs=30,
+    initial_epoch=15,
+    callbacks = [tensorboard, backup_callback,timer],
+    validation_data=validation_generator,
+)
+
 
 # Finales Modell speichern
 model.save(f"{MODELS_DIR}/{model_name}.h5")
