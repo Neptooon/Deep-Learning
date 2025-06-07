@@ -3,10 +3,10 @@ import keras.optimizers
 import tensorflow as tf
 from keras.metrics import TopKCategoricalAccuracy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-
 import helpers
 from transfer import load_resnet50
 from transfer import resnet50, unfreeze
+from tensorflow.keras.applications.resnet50 import preprocess_input
 
 # Klassenbezeichnungen (alphabetisch)
 class_names = ["Art Nouveau Modern", "Baroque", "Cubism", "Expressionism", "Impressionism", "Naive Art Primitivism", "Northern Renaissance", "Post Impressionism", "Realism", "Rococo", "Romanticism", "Symbolism"]
@@ -29,7 +29,7 @@ MODELS_DIR = "/content/drive/MyDrive/DeepLearning/models"
 
 
 # Trainingsgenerator mit Augmentierung (bereits vorab generiert)
-train_gen = ImageDataGenerator(rescale=1./255.)
+train_gen = ImageDataGenerator(preprocessing_function=preprocess_input)
 train_generator = train_gen.flow_from_directory(
     TRAIN_DIR,
     target_size=(224, 224),
@@ -39,7 +39,7 @@ train_generator = train_gen.flow_from_directory(
 )
 
 # Validierungsdaten
-validation_gen = ImageDataGenerator(rescale=1./255.)
+validation_gen = ImageDataGenerator(preprocessing_function=preprocess_input)
 validation_generator = validation_gen.flow_from_directory(
     VAL_DIR,
     target_size=(224, 224),
@@ -61,7 +61,7 @@ test_generator = test_gen.flow_from_directory(
 
 
 
-model_name = 'Transfer_ResNet50'
+model_name = 'Transfer_ResNet50_Regularization_V2'
 
 tensorboard = keras.callbacks.TensorBoard(log_dir=f"{LOGS_DIR}/{model_name}")
 timer = helpers.EpochTimer(model_name=model_name)
@@ -69,13 +69,16 @@ backup_callback = helpers.SaveEveryNEpochs(
     n=5,
     base_path='{}/backup/{}_backup_epoch_{{epoch:02d}}.h5'.format(MODELS_DIR, model_name)
 )
-#early_stop = keras.callbacks.EarlyStopping(monitor='val_loss',patience=3, restore_best_weights=True)
+early_stop = keras.callbacks.EarlyStopping(monitor='val_loss',patience=5, restore_best_weights=True)
 #lr_callback = keras.callbacks.LearningRateScheduler(lr_schedule)
 
 
 # Init-Modell laden
 model = resnet50()
 base_model = model.get_layer("resnet50_base")
+base_model.summary()
+
+
 
 model.compile(
     optimizer=keras.optimizers.Adam(learning_rate=1e-3), # 0,004, 0,003
@@ -86,15 +89,15 @@ model.compile(
 # Training des Modells
 history = model.fit(
     train_generator,
-    epochs=15,
-    callbacks = [tensorboard, backup_callback,timer],
+    epochs=20,
+    callbacks = [tensorboard, backup_callback,timer, early_stop],
     validation_data=validation_generator,
 )
 
-unfreeze(base_model)
+'''unfreeze(base_model)
 
 model.compile(
-    optimizer=keras.optimizers.Adam(learning_rate=1e-5), # 0,00001
+    optimizer=keras.optimizers.Adam(learning_rate=1e-6), # 0,00001
     loss='categorical_crossentropy',
     metrics=['accuracy', TopKCategoricalAccuracy(k=3)]
 )
@@ -102,11 +105,11 @@ model.compile(
 
 history_finetune = model.fit(
     train_generator,
-    epochs=30,
-    initial_epoch=15,
-    callbacks = [tensorboard, backup_callback,timer],
+    epochs=40,
+    initial_epoch=20,
+    callbacks = [tensorboard, backup_callback,timer, early_stop],
     validation_data=validation_generator,
-)
+)'''
 
 
 # Finales Modell speichern
